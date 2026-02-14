@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Meeting Journal</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ===========================
+   ROOT & RESET
+=========================== */
+:root {
+  --bg:       #0c0f0a;
+  --surface:  #141910;
+  --card:     #1a2014;
+  --border:   #2a3524;
+  --accent:   #7eff6a;
+  --accent-d: #4ecf3a;
+  --red:      #ff4d4d;
+  --amber:    #ffb627;
+  --text:     #e8f0e4;
+  --muted:    #5a7050;
+  --radius:   14px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Subtle grain overlay */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.5;
+}
+
+/* ===========================
+   LAYOUT
+=========================== */
+.app {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+}
+
+/* ===========================
+   HEADER
+=========================== */
+.header {
+  margin-bottom: 48px;
+  animation: fadeUp 0.6s ease both;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 42px;
+  letter-spacing: 2px;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 0 40px rgba(126,255,106,0.3);
+}
+
+.version-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 20px;
+  letter-spacing: 1px;
+}
+
+.header-sub {
+  font-size: 14px;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+
+/* ===========================
+   STATUS BAR
+=========================== */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 28px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  animation: fadeUp 0.6s 0.1s ease both;
+}
+
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.status-dot.ready   { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2s infinite; }
+.status-dot.recording { background: var(--red);  box-shadow: 0 0 8px var(--red);   animation: pulse 0.8s infinite; }
+.status-dot.loading { background: var(--amber); box-shadow: 0 0 8px var(--amber); animation: pulse 1.2s infinite; }
+.status-dot.done    { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+.status-text { color: var(--text); }
+
+.status-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ===========================
+   SECTION LABEL
+=========================== */
+.section-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+/* ===========================
+   RECORD CARD
+=========================== */
+.record-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  margin-bottom: 24px;
+  animation: fadeUp 0.6s 0.2s ease both;
+  transition: border-color 0.3s;
+}
+
+.record-card.recording-active {
+  border-color: rgba(255,77,77,0.4);
+  box-shadow: 0 0 30px rgba(255,77,77,0.08);
+}
+
+/* Big record button */
+.record-btn-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.record-btn {
+  width: 100px; height: 100px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+  position: relative;
+  outline: none;
+}
+
+.record-btn:hover {
+  background: rgba(126,255,106,0.07);
+  transform: scale(1.05);
+}
+
+.record-btn.recording {
+  border-color: var(--red);
+  animation: recordPulse 1.5s infinite;
+}
+
+.record-btn.recording .mic-icon { color: var(--red); }
+
+.record-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@keyframes recordPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255,77,77,0.4); }
+  70%  { box-shadow: 0 0 0 20px rgba(255,77,77,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,77,77,0); }
+}
+
+.mic-icon {
+  font-size: 38px;
+  color: var(--accent);
+  transition: color 0.3s;
+  user-select: none;
+}
+
+.record-hint {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+}
+
+/* Waveform visualizer */
+.waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 48px;
+  margin-bottom: 8px;
+}
+
+.wave-bar {
+  width: 4px;
+  border-radius: 4px;
+  background: var(--accent);
+  opacity: 0.3;
+  transition: height 0.1s ease;
+  min-height: 4px;
+}
+
+.wave-bar.active {
+  opacity: 1;
+  animation: wave 0.8s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1)  { animation-delay: 0.0s; }
+.wave-bar:nth-child(2)  { animation-delay: 0.1s; }
+.wave-bar:nth-child(3)  { animation-delay: 0.2s; }
+.wave-bar:nth-child(4)  { animation-delay: 0.3s; }
+.wave-bar:nth-child(5)  { animation-delay: 0.4s; }
+.wave-bar:nth-child(6)  { animation-delay: 0.3s; }
+.wave-bar:nth-child(7)  { animation-delay: 0.2s; }
+.wave-bar:nth-child(8)  { animation-delay: 0.1s; }
+.wave-bar:nth-child(9)  { animation-delay: 0.0s; }
+.wave-bar:nth-child(10) { animation-delay: 0.1s; }
+.wave-bar:nth-child(11) { animation-delay: 0.25s; }
+.wave-bar:nth-child(12) { animation-delay: 0.15s; }
+
+@keyframes wave {
+  0%, 100% { height: 6px; }
+  50%       { height: 32px; }
+}
+
+/* Timer */
+.timer {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 52px;
+  letter-spacing: 4px;
+  color: var(--text);
+  text-align: center;
+  line-height: 1;
+  margin-bottom: 4px;
+  transition: color 0.3s;
+}
+
+.timer.recording { color: var(--red); }
+
+/* Control buttons */
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.ctrl-btn {
+  flex: 1;
+  padding: 13px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  outline: none;
+}
+
+.ctrl-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ctrl-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ctrl-btn.danger { border-color: rgba(255,77,77,0.4); color: var(--red); }
+.ctrl-btn.danger:hover:not(:disabled) { background: rgba(255,77,77,0.08); }
+
+.ctrl-btn.primary {
+  background: var(--accent);
+  color: #0c0f0a;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.ctrl-btn.primary:hover:not(:disabled) {
+  background: var(--accent-d);
+  border-color: var(--accent-d);
+  color: #0c0f0a;
+}
+
+/* ===========================
+   AUDIO PREVIEW
+=========================== */
+.audio-preview {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  animation: fadeUp 0.4s ease both;
+}
+
+.audio-preview.show { display: flex; align-items: center; gap: 14px; }
+
+.audio-preview audio {
+  flex: 1;
+  height: 36px;
+  filter: invert(1) hue-rotate(90deg);
+  opacity: 0.7;
+}
+
+.audio-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ===========================
+   SUBMIT SECTION
+=========================== */
+.submit-section {
+  display: none;
+  animation: fadeUp 0.4s ease both;
+}
+
+.submit-section.show { display: block; }
+
+.submit-btn {
+  width: 100%;
+  padding: 18px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent);
+  color: #0c0f0a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  outline: none;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: var(--accent-d);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(126,255,106,0.25);
+}
+
+.submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Spinner */
+.spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(12,15,10,0.3);
+  border-top-color: #0c0f0a;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===========================
+   RESULT SECTION
+=========================== */
+.result-section {
+  display: none;
+  animation: fadeUp 0.5s ease both;
+}
+
+.result-section.show { display: block; }
+
+.result-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.result-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.result-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.ai-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255,182,39,0.12);
+  color: var(--amber);
+  border: 1px solid rgba(255,182,39,0.3);
+  letter-spacing: 1px;
+}
+
+.result-textarea {
+  width: 100%;
+  min-height: 260px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.8;
+  padding: 20px;
+  resize: vertical;
+  outline: none;
+}
+
+.result-textarea::placeholder { color: var(--muted); }
+
+/* Transcript toggle */
+.transcript-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  transition: color 0.2s;
+}
+
+.transcript-toggle:hover { color: var(--text); }
+
+.transcript-content {
+  display: none;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
+.transcript-content.show { display: block; }
+
+/* Approve / Reject buttons */
+.action-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.approve-btn {
+  flex: 2;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent);
+  color: #0c0f0a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  outline: none;
+}
+
+.approve-btn:hover {
+  background: var(--accent-d);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(126,255,106,0.2);
+}
+
+.reject-btn {
+  flex: 1;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,77,77,0.3);
+  background: transparent;
+  color: var(--red);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.reject-btn:hover {
+  background: rgba(255,77,77,0.08);
+}
+
+/* ===========================
+   SUCCESS SCREEN
+=========================== */
+.success-screen {
+  display: none;
+  text-align: center;
+  padding: 48px 20px;
+  animation: fadeUp 0.5s ease both;
+}
+
+.success-screen.show { display: block; }
+
+.success-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.success-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 38px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.success-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 32px;
+  line-height: 1.6;
+}
+
+.pdf-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 32px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.pdf-download-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.reset-btn {
+  display: block;
+  margin: 16px auto 0;
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.reset-btn:hover { color: var(--text); border-color: var(--text); }
+
+/* ===========================
+   ERROR TOAST
+=========================== */
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: #2a0f0f;
+  border: 1px solid rgba(255,77,77,0.4);
+  color: var(--red);
+  padding: 14px 24px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: 'DM Mono', monospace;
+  z-index: 1000;
+  transition: transform 0.3s ease;
+  white-space: nowrap;
+  max-width: 90vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ===========================
+   DEMO MODE BANNER
+=========================== */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(255,182,39,0.07);
+  border: 1px solid rgba(255,182,39,0.2);
+  border-radius: 10px;
+  margin-bottom: 24px;
+  font-size: 12px;
+  color: var(--amber);
+  font-family: 'DM Mono', monospace;
+  animation: fadeUp 0.6s 0.15s ease both;
+}
+
+.demo-banner span { flex: 1; }
+
+.demo-toggle {
+  background: none;
+  border: 1px solid rgba(255,182,39,0.4);
+  color: var(--amber);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.demo-toggle:hover { background: rgba(255,182,39,0.1); }
+.demo-toggle.active { background: var(--amber); color: #0c0f0a; }
+
+/* ===========================
+   FOOTER
+=========================== */
+.footer {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  animation: fadeUp 0.6s 0.3s ease both;
+}
+
+.gdpr-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+
+/* ===========================
+   ANIMATIONS
+=========================== */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===========================
+   RESPONSIVE
+=========================== */
+@media (max-width: 480px) {
+  .app { padding: 28px 14px 60px; }
+  .logo { font-size: 34px; }
+  .timer { font-size: 40px; }
+  .action-row { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-top">
+      <div class="logo">JOURNAL AI</div>
+      <div class="version-tag">v1.0 · DEMO</div>
+    </div>
+    <div class="header-sub">Meeting audio → AI journal note → Human approval</div>
+  </div>
+
+  <!-- DEMO MODE BANNER -->
+  <div class="demo-banner">
+    <span>⚠ DEMO MODE — n8n se connect karne ke liye toggle karo</span>
+    <button class="demo-toggle active" id="demoToggle" onclick="toggleDemo()">DEMO ON</button>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <div class="status-dot ready" id="statusDot"></div>
+    <span class="status-text" id="statusText">Taiyaar — Mic button dabao</span>
+    <span class="status-time" id="statusTime"></span>
+  </div>
+
+  <!-- ===== STEP 1: RECORD ===== -->
+  <div id="recordSection">
+    <div class="section-label">Step 01 — Record</div>
+    <div class="record-card" id="recordCard">
+
+      <!-- Waveform -->
+      <div class="waveform" id="waveform">
+        <div class="wave-bar" style="height:8px"></div>
+        <div class="wave-bar" style="height:14px"></div>
+        <div class="wave-bar" style="height:22px"></div>
+        <div class="wave-bar" style="height:30px"></div>
+        <div class="wave-bar" style="height:24px"></div>
+        <div class="wave-bar" style="height:36px"></div>
+        <div class="wave-bar" style="height:28px"></div>
+        <div class="wave-bar" style="height:18px"></div>
+        <div class="wave-bar" style="height:32px"></div>
+        <div class="wave-bar" style="height:20px"></div>
+        <div class="wave-bar" style="height:14px"></div>
+        <div class="wave-bar" style="height:8px"></div>
+      </div>
+
+      <!-- Timer -->
+      <div class="timer" id="timerDisplay">00:00</div>
+
+      <!-- Record button -->
+      <div class="record-btn-wrap">
+        <button class="record-btn" id="recordBtn" onclick="toggleRecord()">
+          <span class="mic-icon" id="micIcon">🎙️</span>
+        </button>
+        <div class="record-hint" id="recordHint">Click to start recording</div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button class="ctrl-btn danger" id="discardBtn" onclick="discardRecording()" disabled>
+          🗑 Discard
+        </button>
+        <button class="ctrl-btn" id="stopBtn" onclick="stopRecording()" disabled>
+          ⏹ Stop
+        </button>
+      </div>
+    </div>
+
+    <!-- Audio Preview -->
+    <div class="audio-preview" id="audioPreview">
+      <span class="audio-label">PREVIEW</span>
+      <audio id="audioPlayer" controls></audio>
+    </div>
+
+    <!-- Submit -->
+    <div class="submit-section" id="submitSection">
+      <div class="section-label" style="margin-top:0">Step 02 — Send to AI</div>
+      <button class="submit-btn" id="submitBtn" onclick="submitAudio()">
+        <div class="spinner" id="submitSpinner"></div>
+        <span id="submitBtnText">⚡ AI Journal Generate Karo</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== STEP 3: RESULT ===== -->
+  <div class="result-section" id="resultSection">
+    <div class="section-label">Step 03 — Review & Approve</div>
+
+    <div class="result-card">
+      <div class="result-card-header">
+        <span class="result-title">AI Generated Journal</span>
+        <span class="ai-badge">⚠ AI DRAFT</span>
+      </div>
+      <textarea class="result-textarea" id="journalTextarea"
+        placeholder="AI ka journal note yahan aayega..."></textarea>
+      <div class="transcript-toggle" onclick="toggleTranscript()">
+        <span id="transcriptArrow">▶</span>
+        <span>Original Transcript Dekho</span>
+      </div>
+      <div class="transcript-content" id="transcriptContent"></div>
+    </div>
+
+    <div class="action-row">
+      <button class="approve-btn" onclick="approveJournal()">
+        ✅ Approve & Save
+      </button>
+      <button class="reject-btn" onclick="resetAll()">
+        ✕ Reject
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== SUCCESS ===== -->
+  <div class="success-screen" id="successScreen">
+    <span class="success-icon">✅</span>
+    <div class="success-title">Approved!</div>
+    <p class="success-sub">
+      Journal note save ho gaya.<br/>
+      Session data delete kar diya gaya (GDPR compliant).
+    </p>
+    <a href="#" class="pdf-download-btn" id="pdfDownloadBtn">
+      📄 PDF Download Karo
+    </a>
+    <button class="reset-btn" onclick="resetAll()">
+      ↺ Nai Recording Karo
+    </button>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="gdpr-pill">🔒 GDPR Compliant</div>
+    <div>No permanent storage · EU-ready</div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  CONFIG
+// ============================================================
+const CONFIG = {
+  // Jab n8n ready ho — apna webhook URL yahan paste karo:
+  webhookUrl:  'https://primary-production-4abb8.up.railway.app/webhook-test/session-start',
+  approveUrl:  'https://primary-production-4abb8.up.railway.app/webhook-test/approve',
+  demoMode:    false   // true = n8n ke bina kaam karta hai (testing ke liye)
+};
+
+// ============================================================
+//  STATE
+// ============================================================
+let mediaRecorder  = null;
+let audioChunks    = [];
+let audioBlob      = null;
+let audioUrl       = null;
+let timerInterval  = null;
+let timerSeconds   = 0;
+let isRecording    = false;
+let sessionId      = null;
+let demoMode       = CONFIG.demoMode;
+let waveInterval   = null;
+
+// ============================================================
+//  DEMO DATA (n8n na ho to yeh use hoga)
+// ============================================================
+const DEMO_RESPONSE = {
+  session_id: 'demo_' + Date.now(),
+  journal_note: `## MEETING JOURNAL NOTE
+**Date:** Not specified in recording
+**Participants:** Team members (names not mentioned)
+
+### Summary
+The team discussed the Q3 project timeline and resource allocation. Key concerns were raised about the upcoming deadline and developer availability. Agreement was reached on a revised milestone schedule.
+
+### Decisions Made
+- Project deadline extended by two weeks
+- Additional developer resource to be allocated from Team B
+- Weekly sync meetings to be held every Monday
+
+### Action Items
+- Ali — Prepare revised timeline document — by Friday
+- Sara — Contact Team B for resource request — by Wednesday
+- Ahmed — Update project board with new milestones — by Tomorrow
+
+### Next Steps
+- Share updated timeline with all stakeholders
+- Schedule first weekly sync for next Monday
+- Review budget implications of extended timeline
+
+---
+⚠️ AI-GENERATED DRAFT — PENDING HUMAN REVIEW AND APPROVAL`,
+  transcript: `[Speaker 1]: Okay everyone, let's get started. We need to talk about the Q3 timeline because we're running behind.
+
+[Speaker 2]: Yeah I agree. I think we need at least two more weeks. The feature set is bigger than we estimated.
+
+[Speaker 1]: Alright, so we extend by two weeks. Ali, can you update the project documents?
+
+[Speaker 3]: Sure, I'll have it done by Friday.
+
+[Speaker 2]: We also need more developers. Can we get someone from Team B?
+
+[Speaker 1]: Sara, can you handle that request by Wednesday?
+
+[Speaker 2]: I'll sort out the project board as well — Ahmed you're on that right?
+
+[Speaker 3]: Yes, I'll update it tomorrow.
+
+[Speaker 1]: Great. Let's set up Monday syncs going forward. Meeting adjourned.`
+};
+
+// ============================================================
+//  DEMO TOGGLE
+// ============================================================
+function toggleDemo() {
+  demoMode = !demoMode;
+  const btn = document.getElementById('demoToggle');
+  btn.textContent  = demoMode ? 'DEMO ON' : 'DEMO OFF';
+  btn.classList.toggle('active', demoMode);
+  showToast(demoMode
+    ? '⚡ Demo mode ON — n8n ki zaroorat nahi'
+    : '🔗 Live mode — n8n se connect hoga');
+}
+
+// ============================================================
+//  STATUS HELPERS
+// ============================================================
+function setStatus(text, type = 'ready') {
+  const dot  = document.getElementById('statusDot');
+  const span = document.getElementById('statusText');
+  dot.className  = 'status-dot ' + type;
+  span.textContent = text;
+}
+
+function showToast(msg, duration = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ============================================================
+//  TIMER
+// ============================================================
+function startTimer() {
+  timerSeconds = 0;
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+    const s = String(timerSeconds % 60).padStart(2, '0');
+    const el = document.getElementById('timerDisplay');
+    el.textContent = `${m}:${s}`;
+    el.classList.add('recording');
+    if (timerSeconds >= 300) stopRecording(); // 5 min max
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  document.getElementById('timerDisplay').classList.remove('recording');
+}
+
+// ============================================================
+//  WAVEFORM ANIMATION
+// ============================================================
+function startWave() {
+  const bars = document.querySelectorAll('.wave-bar');
+  bars.forEach(b => b.classList.add('active'));
+  waveInterval = setInterval(() => {
+    bars.forEach(b => {
+      const h = Math.random() * 36 + 4;
+      b.style.height = h + 'px';
+    });
+  }, 120);
+}
+
+function stopWave() {
+  clearInterval(waveInterval);
+  const bars = document.querySelectorAll('.wave-bar');
+  const defaults = [8,14,22,30,24,36,28,18,32,20,14,8];
+  bars.forEach((b, i) => {
+    b.classList.remove('active');
+    b.style.height = defaults[i] + 'px';
+  });
+}
+
+// ============================================================
+//  RECORDING
+// ============================================================
+async function toggleRecord() {
+  if (!isRecording) {
+    await startRecording();
+  } else {
+    stopRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    // Pick best supported format
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm')
+      ? 'audio/webm'
+      : 'audio/ogg';
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    audioChunks   = [];
+
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      audioBlob = new Blob(audioChunks, { type: mimeType });
+      audioUrl  = URL.createObjectURL(audioBlob);
+      document.getElementById('audioPlayer').src = audioUrl;
+      document.getElementById('audioPreview').classList.add('show');
+      document.getElementById('submitSection').classList.add('show');
+      stream.getTracks().forEach(t => t.stop());
+    };
+
+    mediaRecorder.start(250);
+    isRecording = true;
+
+    // UI updates
+    const btn = document.getElementById('recordBtn');
+    btn.classList.add('recording');
+    document.getElementById('micIcon').textContent = '⏹';
+    document.getElementById('recordHint').textContent = 'Recording... click to stop';
+    document.getElementById('recordCard').classList.add('recording-active');
+    document.getElementById('stopBtn').disabled    = false;
+    document.getElementById('discardBtn').disabled = false;
+
+    setStatus('Recording ho raha hai...', 'recording');
+    startTimer();
+    startWave();
+
+  } catch (err) {
+    showToast('❌ Mic permission chahiye — browser mein allow karo');
+    setStatus('Mic error', 'ready');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    isRecording = false;
+
+    document.getElementById('recordBtn').classList.remove('recording');
+    document.getElementById('micIcon').textContent = '🎙️';
+    document.getElementById('recordHint').textContent = 'Recording complete!';
+    document.getElementById('recordCard').classList.remove('recording-active');
+    document.getElementById('stopBtn').disabled = true;
+
+    setStatus('Recording complete — Preview sun, phir submit karo', 'ready');
+    stopTimer();
+    stopWave();
+  }
+}
+
+function discardRecording() {
+  if (isRecording) stopRecording();
+  audioBlob = null; audioUrl = null; audioChunks = [];
+  document.getElementById('audioPreview').classList.remove('show');
+  document.getElementById('submitSection').classList.remove('show');
+  document.getElementById('audioPlayer').src = '';
+  document.getElementById('recordHint').textContent = 'Click to start recording';
+  document.getElementById('timerDisplay').textContent = '00:00';
+  document.getElementById('discardBtn').disabled = true;
+  document.getElementById('stopBtn').disabled    = true;
+  stopWave();
+  setStatus('Taiyaar — Mic button dabao', 'ready');
+  showToast('🗑 Recording discard kar di');
+}
+
+// ============================================================
+//  SUBMIT TO n8n (or DEMO)
+// ============================================================
+async function submitAudio() {
+  const btn     = document.getElementById('submitBtn');
+  const spinner = document.getElementById('submitSpinner');
+  const btnText = document.getElementById('submitBtnText');
+
+  btn.disabled       = true;
+  spinner.style.display = 'block';
+  btnText.textContent   = 'Processing...';
+  setStatus('AI journal generate kar raha hai...', 'loading');
+
+  try {
+    let data;
+
+    if (demoMode) {
+      // Demo: simulate 2.5s delay
+      await new Promise(r => setTimeout(r, 2500));
+      data = { ...DEMO_RESPONSE, session_id: 'demo_' + Date.now() };
+    } else {
+      // Real: send audio to n8n
+      if (!audioBlob) throw new Error('Koi audio nahi mila');
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+
+      const res = await fetch(CONFIG.webhookUrl, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) throw new Error('Server error: ' + res.status);
+      data = await res.json();
+    }
+
+    sessionId = data.session_id;
+
+    // Show result
+    document.getElementById('journalTextarea').value  = data.journal_note || '';
+    document.getElementById('transcriptContent').textContent = data.transcript || 'N/A';
+    document.getElementById('recordSection').style.display   = 'none';
+    document.getElementById('resultSection').classList.add('show');
+    setStatus('Journal ready — Review karo aur approve karo', 'done');
+
+  } catch (err) {
+    showToast('❌ Error: ' + err.message);
+    btn.disabled          = false;
+    spinner.style.display = 'none';
+    btnText.textContent   = '⚡ AI Journal Generate Karo';
+    setStatus('Error hua — dobara try karo', 'ready');
+  }
+}
+
+// ============================================================
+//  TRANSCRIPT TOGGLE
+// ============================================================
+function toggleTranscript() {
+  const el  = document.getElementById('transcriptContent');
+  const arr = document.getElementById('transcriptArrow');
+  const showing = el.classList.toggle('show');
+  arr.textContent = showing ? '▼' : '▶';
+}
+
+// ============================================================
+//  APPROVE
+// ============================================================
+async function approveJournal() {
+  const note = document.getElementById('journalTextarea').value.trim();
+  if (!note) { showToast('❌ Journal empty hai — kuch likho pehle'); return; }
+
+  setStatus('Approving...', 'loading');
+
+  try {
+    if (!demoMode) {
+      const res = await fetch(CONFIG.approveUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id:  sessionId,
+          edited_note: note,
+          approve:     true
+        })
+      });
+      if (!res.ok) throw new Error('Approve error: ' + res.status);
+    } else {
+      await new Promise(r => setTimeout(r, 800));
+    }
+
+    // Generate PDF (in browser)
+    generatePDF(note);
+
+    document.getElementById('resultSection').classList.remove('show');
+    document.getElementById('successScreen').classList.add('show');
+    setStatus('Approved! ✓ Session data deleted', 'done');
+
+  } catch (err) {
+    showToast('❌ ' + err.message);
+    setStatus('Error hua', 'ready');
+  }
+}
+
+// ============================================================
+//  PDF GENERATION (client-side)
+// ============================================================
+function generatePDF(noteText) {
+  const htmlContent = `
+    <!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      body { font-family: Georgia, serif; max-width: 700px; margin: 40px auto; color: #1a1a1a; line-height: 1.7; }
+      h1 { font-size: 24px; border-bottom: 2px solid #1a1a1a; padding-bottom: 10px; }
+      .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
+      .badge { background: #d4edda; color: #155724; padding: 4px 12px; border-radius: 4px; font-size: 12px; }
+      pre { white-space: pre-wrap; font-family: Georgia, serif; font-size: 15px; }
+      .footer { margin-top: 40px; border-top: 1px solid #ccc; padding-top: 10px; font-size: 12px; color: #888; }
+    </style></head><body>
+    <h1>Meeting Journal Note</h1>
+    <div class="meta">
+      Session: ${sessionId || 'demo'}<br/>
+      Generated: ${new Date().toLocaleString()}<br/>
+      <span class="badge">✓ HUMAN APPROVED</span>
+    </div>
+    <pre>${noteText}</pre>
+    <div class="footer">Generated by AI · Reviewed and approved by human operator · GDPR Compliant</div>
+    </body></html>`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+
+  const a = document.getElementById('pdfDownloadBtn');
+  a.href     = url;
+  a.download = `meeting-journal-${Date.now()}.html`;
+}
+
+// ============================================================
+//  RESET
+// ============================================================
+function resetAll() {
+  // Reset state
+  audioBlob = null; audioUrl = null; sessionId = null;
+  audioChunks = []; timerSeconds = 0;
+  isRecording = false;
+
+  // Reset UI
+  document.getElementById('timerDisplay').textContent  = '00:00';
+  document.getElementById('timerDisplay').classList.remove('recording');
+  document.getElementById('recordBtn').classList.remove('recording');
+  document.getElementById('micIcon').textContent       = '🎙️';
+  document.getElementById('recordHint').textContent    = 'Click to start recording';
+  document.getElementById('recordCard').classList.remove('recording-active');
+  document.getElementById('audioPreview').classList.remove('show');
+  document.getElementById('submitSection').classList.remove('show');
+  document.getElementById('audioPlayer').src           = '';
+  document.getElementById('stopBtn').disabled          = true;
+  document.getElementById('discardBtn').disabled       = true;
+  document.getElementById('submitBtn').disabled        = false;
+  document.getElementById('submitSpinner').style.display = 'none';
+  document.getElementById('submitBtnText').textContent = '⚡ AI Journal Generate Karo';
+  document.getElementById('journalTextarea').value     = '';
+  document.getElementById('transcriptContent').textContent = '';
+  document.getElementById('transcriptContent').classList.remove('show');
+  document.getElementById('transcriptArrow').textContent  = '▶';
+  document.getElementById('recordSection').style.display  = '';
+  document.getElementById('resultSection').classList.remove('show');
+  document.getElementById('successScreen').classList.remove('show');
+
+  stopWave();
+  setStatus('Taiyaar — Mic button dabao', 'ready');
+}
+
+// ============================================================
+//  CLOCK
+// ============================================================
+function updateClock() {
+  document.getElementById('statusTime').textContent =
+    new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+updateClock();
+setInterval(updateClock, 30000);
+</script>
+
+</body>
+</html>
